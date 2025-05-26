@@ -3,17 +3,10 @@ import numpy as np
 from picamera2 import Picamera2
 import time
 
-# Taille plus grande (augmenter selon ton besoin et la puissance du Raspberry)
-target_size = (1280, 720)  # Full HD possible aussi : (1920, 1080)
-
-# Charger l'image de référence (déjà enregistrée)
-ref_image = cv2.imread('capture.jpg')
-if ref_image is None:
-    print("Image capture.jpg introuvable. Vérifie le chemin.")
-    exit()
-
-ref_image = cv2.resize(ref_image, target_size)
-ref_gray = cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
+# Configuration
+target_size = (1280, 720)  # Taille de l'image (augmente si besoin)
+seuil_diff = 2  # Seuil en % pour détecter un changement
+intervalle_capture = 5  # Temps entre chaque capture (en secondes)
 
 # Initialiser la caméra
 picam2 = Picamera2()
@@ -25,30 +18,39 @@ picam2.start()
 # Attendre un peu que la caméra se stabilise
 time.sleep(2)
 
-# Capturer une seule image
-frame = picam2.capture_array()
-frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+# Prendre la première image de référence
+ancienne_image = picam2.capture_array()
+ancienne_image_gray = cv2.cvtColor(ancienne_image, cv2.COLOR_BGR2GRAY)
 
-# Comparer avec la référence
-diff = cv2.absdiff(ref_gray, frame_gray)
-_, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+print("🚀 Surveillance en cours...")
 
-# Calculer le pourcentage de différence
-diff_percent = (np.sum(thresh > 0) / thresh.size) * 100
-print(f"Différence détectée : {diff_percent:.2f}%")
+try:
+    while True:
+        # Attendre 5 secondes
+        time.sleep(intervalle_capture)
 
-# Déterminer s'il y a un changement
-if diff_percent > 2:  # Seuil ajusté (2% pour être plus sensible avec la HD)
-    print("⚠️ Changement détecté entre les images !")
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    cv2.imwrite(f"nouvelle_capture_{timestamp}.jpg", frame)
-else:
-    print("✅ Pas de changement significatif détecté.")
+        # Capturer une nouvelle image
+        nouvelle_image = picam2.capture_array()
+        nouvelle_image_gray = cv2.cvtColor(nouvelle_image, cv2.COLOR_BGR2GRAY)
 
-# Afficher le résultat (optionnel)
-cv2.imshow("Différence détectée", thresh)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+        # Comparer avec l'image précédente
+        diff = cv2.absdiff(ancienne_image_gray, nouvelle_image_gray)
+        _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+        diff_percent = (np.sum(thresh > 0) / thresh.size) * 100
+        print(f"Différence : {diff_percent:.2f}%")
 
-# Fermer la caméra proprement
-picam2.stop()
+        # Si changement détecté
+        if diff_percent > seuil_diff:
+            print("⚠️ Changement détecté !")
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            cv2.imwrite(f"changement_detecte_{timestamp}.jpg", nouvelle_image)
+            cv2.imshow("Changement détecté", nouvelle_image)
+            cv2.waitKey(1)  # Petite pause pour afficher
+
+        # Mettre à jour l'image précédente
+        ancienne_image_gray = nouvelle_image_gray
+
+except KeyboardInterrupt:
+    print("\nArrêt du script.")
+    picam2.stop()
+    cv2.destroyAllWindows()

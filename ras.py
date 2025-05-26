@@ -1,27 +1,23 @@
+from picamera2 import Picamera2
 import cv2
 
-# Remplace par l'IP de ton Raspberry Pi
-raspberry_ip = "192.168.1.42"  # Exemple
-raspberry_port = 8888
+# Initialiser la caméra
+picam2 = Picamera2()
+picam2.preview_configuration.main.size = (640, 480)  # Taille de l'image
+picam2.preview_configuration.main.format = "RGB888"
+picam2.configure("preview")
 
-# Pipeline GStreamer pour décoder le flux H.264 et le lire dans OpenCV
-gst_pipeline = f"tcpclientsrc host={raspberry_ip} port={raspberry_port} ! h264parse ! avdec_h264 ! videoconvert ! appsink"
-
-cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
-
-if not cap.isOpened():
-    print("Erreur : impossible d'ouvrir le flux.")
-    exit()
+# Démarrer la caméra
+picam2.start()
 
 while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Erreur lors de la lecture du flux.")
-        break
+    frame = picam2.capture_array()  # Capture une image
+    cv2.imshow("Camera Pi", frame)
 
-    cv2.imshow("Flux vidéo", frame)
+    # Quitter si on appuie sur 'q'
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-cap.release()
+# Fermer les fenêtres
 cv2.destroyAllWindows()
+picam2.stop()

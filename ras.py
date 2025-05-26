@@ -1,28 +1,27 @@
 import cv2
 
-# Charger le classificateur HaarCascade (pour la détection de visages)
-haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+# Remplace par l'IP de ton Raspberry Pi
+raspberry_ip = "192.168.1.42"  # Exemple
+raspberry_port = 8888
 
-# Lire l'image capturée
-img = cv2.imread('capture.jpg')
+# Pipeline GStreamer pour décoder le flux H.264 et le lire dans OpenCV
+gst_pipeline = f"tcpclientsrc host={raspberry_ip} port={raspberry_port} ! h264parse ! avdec_h264 ! videoconvert ! appsink"
 
-if img is None:
-    print("Erreur : L'image n'a pas été trouvée.")
+cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+
+if not cap.isOpened():
+    print("Erreur : impossible d'ouvrir le flux.")
     exit()
 
-# Convertir en niveaux de gris
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Erreur lors de la lecture du flux.")
+        break
 
-# Détecter les visages dans l'image
-faces = haar_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+    cv2.imshow("Flux vidéo", frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-# Afficher les résultats
-for (x, y, w, h) in faces:
-    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-print(f"Nombre de personnes détectées : {len(faces)}")
-
-# Afficher l'image
-cv2.imshow('Détection de visage', img)
-cv2.waitKey(0)
+cap.release()
 cv2.destroyAllWindows()

@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
 from picamera2 import Picamera2
+import time
+
+# Taille plus grande (augmenter selon ton besoin et la puissance du Raspberry)
+target_size = (1280, 720)  # Full HD possible aussi : (1920, 1080)
 
 # Charger l'image de référence (déjà enregistrée)
 ref_image = cv2.imread('capture.jpg')
@@ -8,8 +12,6 @@ if ref_image is None:
     print("Image capture.jpg introuvable. Vérifie le chemin.")
     exit()
 
-# Redimensionner pour uniformiser
-target_size = (320, 240)
 ref_image = cv2.resize(ref_image, target_size)
 ref_gray = cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
 
@@ -21,10 +23,9 @@ picam2.configure("preview")
 picam2.start()
 
 # Attendre un peu que la caméra se stabilise
-import time
 time.sleep(2)
 
-# Prendre une seule photo (capture actuelle)
+# Capturer une seule image
 frame = picam2.capture_array()
 frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -37,14 +38,14 @@ diff_percent = (np.sum(thresh > 0) / thresh.size) * 100
 print(f"Différence détectée : {diff_percent:.2f}%")
 
 # Déterminer s'il y a un changement
-if diff_percent > 5:  # Seuil ajustable
+if diff_percent > 2:  # Seuil ajusté (2% pour être plus sensible avec la HD)
     print("⚠️ Changement détecté entre les images !")
-    # Sauvegarder la nouvelle image avec un nom unique
-    cv2.imwrite("nouvelle_capture.jpg", frame)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    cv2.imwrite(f"nouvelle_capture_{timestamp}.jpg", frame)
 else:
     print("✅ Pas de changement significatif détecté.")
 
-# Afficher la différence pour vérifier visuellement (optionnel)
+# Afficher le résultat (optionnel)
 cv2.imshow("Différence détectée", thresh)
 cv2.waitKey(0)
 cv2.destroyAllWindows()

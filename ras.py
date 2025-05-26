@@ -2,69 +2,46 @@ import cv2
 import numpy as np
 from picamera2 import Picamera2
 
-# Initialisation caméra
+# Charger l'image de référence enregistrée (capture.jpg)
+ref_image = cv2.imread('capture.jpg')
+ref_image = cv2.resize(ref_image, (640, 480))  # Adapter à la taille de capture
+
+# Initialiser la caméra
 picam2 = Picamera2()
-picam2.preview_configuration.main.size = (3280, 2464)  # Résolution max pour IMX219
+picam2.preview_configuration.main.size = (640, 480)
 picam2.preview_configuration.main.format = "RGB888"
 picam2.configure("preview")
 picam2.start()
 
 while True:
+    # Capturer une image en temps réel
     frame = picam2.capture_array()
-    frame = cv2.flip(frame, 1)  # Miroir
+    frame = cv2.flip(frame, 1)
 
-    # Convertir en HSV
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    # Convertir les deux images en niveaux de gris
+    ref_gray = cv2.cvtColor(ref_image, cv2.COLOR_BGR2GRAY)
+    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    # Masque couleur peau (ajuste si besoin)
-    lower_skin = np.array([0, 30, 60], dtype=np.uint8)
-    upper_skin = np.array([20, 150, 255], dtype=np.uint8)
-    mask = cv2.inRange(hsv, lower_skin, upper_skin)
+    # Calculer la différence absolue
+    diff = cv2.absdiff(ref_gray, frame_gray)
 
-    # Amélioration du masque
-    mask = cv2.GaussianBlur(mask, (5, 5), 100)
+    # Seuillage pour rendre la différence visible
+    _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
 
-    # Trouver les contours
-    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    if contours:
-        # Plus grand contour = main
-        cnt = max(contours, key=lambda x: cv2.contourArea(x))
-        epsilon = 0.0005 * cv2.arcLength(cnt, True)
-        approx = cv2.approxPolyDP(cnt, epsilon, True)
+    # (optionnel) Morphologie pour réduire le bruit
+    kernel = np.ones((5,5), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_DILATE, kernel)
 
-        # Trouver les points extrêmes (convex hull)
-        hull = cv2.convexHull(cnt)
-        cv2.drawContours(frame, [hull], -1, (0, 255, 0), 2)
+    # Afficher les résultats
+    cv2.imshow("Capture en temps réel", frame)
+    cv2.imshow("Différence (grayscale)", diff)
+    cv2.imshow("Différences détectées", thresh)
 
-        # Compter les défauts de convexité (doigts)
-        hull_indices = cv2.convexHull(cnt, returnPoints=False)
-        defects = cv2.convexityDefects(cnt, hull_indices)
-
-        fingers = 0
-        if defects is not None:
-            for i in range(defects.shape[0]):
-                s, e, f, d = defects[i, 0]
-                start = tuple(cnt[s][0])
-                end = tuple(cnt[e][0])
-                far = tuple(cnt[f][0])
-
-                # Angle (simple estimation)
-                a = np.linalg.norm(np.array(end) - np.array(start))
-                b = np.linalg.norm(np.array(far) - np.array(start))
-                c = np.linalg.norm(np.array(end) - np.array(far))
-                angle = np.arccos((b**2 + c**2 - a**2)/(2*b*c))
-
-                if angle <= np.pi / 2:  # angle < 90 degrés, c'est probablement un doigt
-                    fingers += 1
-                    cv2.circle(frame, far, 8, [211, 84, 0], -1)
-
-        cv2.putText(frame, f"Doigts leves: {fingers+1}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-
-    cv2.imshow('Frame', frame)
-    cv2.imshow('Mask', mask)
-
+    # Quitter en appuyant sur 'q'
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
+# Fermer proprement
 cv2.destroyAllWindows()
 picam2.stop()

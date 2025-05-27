@@ -4,30 +4,35 @@ import numpy as np
 import time
 import os
 
-# Création dossier pour sauvegarder les images
 save_dir = "./captures_postes"
 os.makedirs(save_dir, exist_ok=True)
 
-# Définition des zones des 6 postes (x, y, largeur, hauteur)
-zones_postes = [
-    (0, 0, 100, 200),  # À ajuster selon ta caméra et poste
-    (100, 0, 100, 200),
-    (200, 0, 100, 200),
-    (300, 0, 100, 200),
-    (400, 0, 100, 200),
-    (500, 0, 100, 200),
-]
-
 picam2 = Picamera2()
+
+# Config haute résolution (ajuste la résolution selon ta caméra)
+config = picam2.create_still_configuration(main={"size": (3280, 2464)})
+picam2.configure(config)
+
 picam2.start()
-time.sleep(2)  # Attente démarrage caméra
+time.sleep(2)
 
 frame_ref = picam2.capture_array()
 gray_ref = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
 
-compteur_images = 0
+zones_postes = [
+    (0, 0, 500, 800),  # exemple, ajuste selon ta capture plus grande
+    (500, 0, 500, 800),
+    (1000, 0, 500, 800),
+    (1500, 0, 500, 800),
+    (2000, 0, 500, 800),
+    (2500, 0, 500, 800),
+]
 
-while True:
+compteur_images = 0
+nombre_verifications = 0
+MAX_VERIFICATIONS = 15
+
+while nombre_verifications < MAX_VERIFICATIONS:
     frame = picam2.capture_array()
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -40,16 +45,20 @@ while True:
         contours, _ = cv2.findContours(zone, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         aire_totale = sum(cv2.contourArea(c) for c in contours)
 
-        # Seuil pour décider si le poste est occupé (ajuste ce seuil)
-        seuil_occupation = 500
+        seuil_occupation = 1000  # à ajuster
 
         if aire_totale >= seuil_occupation:
             print(f"Poste {i+1} est occupé. Sauvegarde de l'image...")
-            # Sauvegarde la photo complète (ou la zone uniquement si tu veux)
             nom_fichier = f"{save_dir}/poste_{i+1}_capture_{compteur_images}.jpg"
-            cv2.imwrite(nom_fichier, frame)
+            # Sauvegarde en JPEG avec qualité 95%
+            cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
             compteur_images += 1
         else:
             print(f"Poste {i+1} est vide.")
 
+    nombre_verifications += 1
+    print(f"Vérification {nombre_verifications}/{MAX_VERIFICATIONS} terminée.\n")
     time.sleep(1)
+
+picam2.stop()
+print("Fin du programme après 15 vérifications.")

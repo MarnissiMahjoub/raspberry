@@ -1,6 +1,10 @@
 from picamera2 import Picamera2
 import cv2
 import time
+import os
+
+save_dir = "./captures"
+os.makedirs(save_dir, exist_ok=True)
 
 picam2 = Picamera2()
 
@@ -11,7 +15,9 @@ try:
     frame_ref = picam2.capture_array()
     frame_ref_gray = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
 
-    SEUIL_POURCENTAGE = 5.0
+    SEUIL_POURCENTAGE = 1.0  # seuil à 1%
+
+    compteur_images = 0
 
     while True:
         frame = picam2.capture_array()
@@ -27,12 +33,15 @@ try:
         print(f"Différence détectée : {pourcentage_diff:.2f}%")
 
         if pourcentage_diff > SEUIL_POURCENTAGE:
-            print("⚠️ Employé absent du poste !")
+            print("⚠️ Employé absent du poste ! Sauvegarde de l'image...")
+            nom_fichier = f"{save_dir}/capture_{compteur_images}.jpg"
+            cv2.imwrite(nom_fichier, frame)
+            compteur_images += 1
 
-        # cv2.imshow("Différences", thresh)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        time.sleep(1)  # pause d’1 seconde entre chaque capture pour ne pas saturer le CPU
+
+except KeyboardInterrupt:
+    print("Programme arrêté par l'utilisateur.")
 
 finally:
     picam2.stop()
-    cv2.destroyAllWindows()

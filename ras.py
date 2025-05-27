@@ -1,7 +1,7 @@
 import cv2
 
 cap = cv2.VideoCapture(0)  # Vérifie si c'est bien la caméra
-
+print(cap)
 ret, frame_ref = cap.read()
 if not ret or frame_ref is None:
     print("Erreur : Impossible de capturer l'image depuis la caméra.")

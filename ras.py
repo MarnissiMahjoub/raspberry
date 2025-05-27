@@ -29,7 +29,7 @@ try:
         if pourcentage_diff > SEUIL_POURCENTAGE:
             print("⚠️ Employé absent du poste !")
 
-        cv2.imshow("Différences", thresh)
+        # cv2.imshow("Différences", thresh)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 

@@ -16,10 +16,11 @@ try:
     frame_ref_gray = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
 
     SEUIL_POURCENTAGE = 1.0  # seuil à 1%
-
     compteur_images = 0
+    nombre_verifications = 0
+    MAX_VERIFICATIONS = 30
 
-    while True:
+    while nombre_verifications < MAX_VERIFICATIONS:
         frame = picam2.capture_array()
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -38,10 +39,12 @@ try:
             cv2.imwrite(nom_fichier, frame)
             compteur_images += 1
 
-        time.sleep(1)  # pause d’1 seconde entre chaque capture pour ne pas saturer le CPU
+        nombre_verifications += 1
+        time.sleep(1)  # pause 1 seconde
 
 except KeyboardInterrupt:
     print("Programme arrêté par l'utilisateur.")
 
 finally:
     picam2.stop()
+    print("Fin du programme après", nombre_verifications, "vérifications.")

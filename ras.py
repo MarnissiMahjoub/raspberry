@@ -1,4 +1,4 @@
-from picamera2 import Picamera2
+from picamera2 import Picamera2, Preview
 import cv2
 import time
 import os
@@ -7,6 +7,10 @@ save_dir = "./captures"
 os.makedirs(save_dir, exist_ok=True)
 
 picam2 = Picamera2()
+
+# Configurer la résolution (exemple 4056x3040, à adapter selon ta caméra)
+config = picam2.create_still_configuration(main={"size": (4056, 3040)})
+picam2.configure(config)
 
 try:
     picam2.start()
@@ -36,7 +40,8 @@ try:
         if pourcentage_diff > SEUIL_POURCENTAGE:
             print("⚠️ Employé absent du poste ! Sauvegarde de l'image...")
             nom_fichier = f"{save_dir}/capture_{compteur_images}.jpg"
-            cv2.imwrite(nom_fichier, frame)
+            # Pour la qualité JPEG (0-100, 100 = meilleur), ajouter paramètre:
+            cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
             compteur_images += 1
 
         nombre_verifications += 1

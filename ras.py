@@ -1,42 +1,38 @@
 from picamera2 import Picamera2
 import cv2
 import time
-import numpy as np
 
-# Initialisation
 picam2 = Picamera2()
-picam2.start()
-time.sleep(2)  # Laisse la caméra démarrer
 
-# Capture image de référence
-frame_ref = picam2.capture_array()
-frame_ref_gray = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
+try:
+    picam2.start()
+    time.sleep(2)
 
-# Seuil de détection (à ajuster selon le cas)
-SEUIL_POURCENTAGE = 5.0  # % de différence autorisée
+    frame_ref = picam2.capture_array()
+    frame_ref_gray = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
 
-while True:
-    frame = picam2.capture_array()
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    SEUIL_POURCENTAGE = 5.0
 
-    # Calcul des différences
-    diff = cv2.absdiff(frame_ref_gray, gray)
-    _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+    while True:
+        frame = picam2.capture_array()
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    # Calcul du pourcentage de différences
-    nb_pixels_diff = cv2.countNonZero(thresh)
-    total_pixels = thresh.shape[0] * thresh.shape[1]
-    pourcentage_diff = (nb_pixels_diff / total_pixels) * 100
+        diff = cv2.absdiff(frame_ref_gray, gray)
+        _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
 
-    print(f"Différence détectée : {pourcentage_diff:.2f}%")
+        nb_pixels_diff = cv2.countNonZero(thresh)
+        total_pixels = thresh.shape[0] * thresh.shape[1]
+        pourcentage_diff = (nb_pixels_diff / total_pixels) * 100
 
-    # Détection du départ de l'employé
-    if pourcentage_diff > SEUIL_POURCENTAGE:
-        print("⚠️ Employé absent du poste !")
+        print(f"Différence détectée : {pourcentage_diff:.2f}%")
 
-    # Affichage ou sauvegarde (si besoin)
-    cv2.imshow("Différences", thresh)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        if pourcentage_diff > SEUIL_POURCENTAGE:
+            print("⚠️ Employé absent du poste !")
 
-cv2.destroyAllWindows()
+        cv2.imshow("Différences", thresh)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+finally:
+    picam2.stop()
+    cv2.destroyAllWindows()

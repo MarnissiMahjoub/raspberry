@@ -72,8 +72,8 @@ while nombre_verifications < MAX_VERIFICATIONS:
     zone_bgr = frame[y:y + h, x:x + w]
     bouton_rouge = detect_bouton_rouge(zone_bgr)
 
-    if aire_totale >= seuil_occupation or bouton_rouge:
-        print("Poste occupé (mouvement ou bouton rouge détecté) - sauvegarde image.")
+    if  bouton_rouge:
+        print("bouton rouge détecté.")
         nom_fichier = f"{save_dir}/poste_capture_{compteur_images}.jpg"
         cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
         compteur_images += 1

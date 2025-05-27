@@ -1,42 +1,42 @@
+from picamera2 import Picamera2
 import cv2
 import numpy as np
+import time
 
-# Supposons que tes zones soient des rectangles définis comme (x, y, w, h)
+# Définition des zones des 6 postes (x, y, largeur, hauteur)
 zones_postes = [
-    (0, 0, 100, 200),     # Poste 1
-    (100, 0, 100, 200),   # Poste 2
-    (200, 0, 100, 200),   # Poste 3
-    (300, 0, 100, 200),   # Poste 4
-    (400, 0, 100, 200),   # Poste 5
-    (500, 0, 100, 200),   # Poste 6
+    (0, 0, 100, 200),  # Ajuste ces valeurs à ta config
+    (100, 0, 100, 200),
+    (200, 0, 100, 200),
+    (300, 0, 100, 200),
+    (400, 0, 100, 200),
+    (500, 0, 100, 200),
 ]
 
-# Image de référence et image actuelle (ex : capturées)
-frame_ref = cv2.imread("ref.jpg")        # Image référence
-frame = cv2.imread("courante.jpg")       # Image à analyser
+picam2 = Picamera2()
+picam2.start()
+time.sleep(2)  # Temps pour que la caméra soit prête
 
+# Capture image de référence (poste occupés sans personne)
+frame_ref = picam2.capture_array()
 gray_ref = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
-gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-diff = cv2.absdiff(gray_ref, gray)
-_, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
-thresh = cv2.GaussianBlur(thresh, (5,5), 0)  # lissage
+while True:
+    frame = picam2.capture_array()
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-for i, (x, y, w, h) in enumerate(zones_postes):
-    zone = thresh[y:y+h, x:x+w]
-    contours, _ = cv2.findContours(zone, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    diff = cv2.absdiff(gray_ref, gray)
+    _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+    thresh = cv2.GaussianBlur(thresh, (5,5), 0)
 
-    aire_totale = sum(cv2.contourArea(c) for c in contours)
+    for i, (x, y, w, h) in enumerate(zones_postes):
+        zone = thresh[y:y+h, x:x+w]
+        contours, _ = cv2.findContours(zone, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        aire_totale = sum(cv2.contourArea(c) for c in contours)
 
-    if aire_totale < 500:  # seuil à ajuster selon la taille des objets/personnes
-        print(f"Poste {i+1} est vide")
-    else:
-        print(f"Poste {i+1} est occupé")
+        if aire_totale < 500:
+            print(f"Poste {i+1} est vide")
+        else:
+            print(f"Poste {i+1} est occupé")
 
-# Optionnel : afficher les zones et contours pour debug
-for (x, y, w, h) in zones_postes:
-    cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
-
-cv2.imshow("Postes détectés", frame)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    time.sleep(1)

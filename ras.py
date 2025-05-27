@@ -1,21 +1,16 @@
+from picamera2 import Picamera2
 import cv2
+import time
 
-cap = cv2.VideoCapture(0)  # Vérifie si c'est bien la caméra
-print(cap)
-ret, frame_ref = cap.read()
-if not ret or frame_ref is None:
-    print("Erreur : Impossible de capturer l'image depuis la caméra.")
-    cap.release()
-    exit(1)
+picam2 = Picamera2()
+picam2.start()
+time.sleep(2)  # Laisse le temps à la caméra de démarrer
 
+frame_ref = picam2.capture_array()
 frame_ref_gray = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
 
 while True:
-    ret, frame = cap.read()
-    if not ret or frame is None:
-        print("Erreur : Problème lors de la lecture de l'image.")
-        break
-
+    frame = picam2.capture_array()
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     diff = cv2.absdiff(frame_ref_gray, gray)
     _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
@@ -25,5 +20,4 @@ while True:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-cap.release()
 cv2.destroyAllWindows()

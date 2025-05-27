@@ -29,7 +29,7 @@ zones_postes = [
 
 compteur_images = 0
 nombre_verifications = 0
-MAX_VERIFICATIONS = 15
+MAX_VERIFICATIONS = 10
 
 
 def detect_bouton_rouge(roi_bgr):
@@ -89,4 +89,4 @@ while nombre_verifications < MAX_VERIFICATIONS:
     time.sleep(1)
 
 picam2.stop()
-print("Fin du programme après 15 vérifications.")
+print("Fin du programme après 10 vérifications.")

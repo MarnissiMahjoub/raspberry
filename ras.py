@@ -28,7 +28,12 @@ time.sleep(2)  # Laisser le temps à la caméra de se stabiliser
 # Zone du poste
 x, y, w, h = 100, 100, 400, 300  # Ajuste selon la caméra
 
-seuil_detection = 30  # Ajuste ce seuil si nécessaire
+seuil_detection = 30  # Seuil pour considérer le poste comme vide
+delai_absence = 10  # Délai en secondes pour confirmer l'absence
+
+# Variables de suivi
+absence_start_time = None
+poste_vide_confirme = False
 
 def comparer_images(img1, img2, zone):
     x, y, w, h = zone
@@ -48,27 +53,28 @@ try:
 
         # Comparaison avec la référence vide
         score_vide = comparer_images(frame, ref_vide, (x, y, w, h))
+        employe_present = score_vide > seuil_detection
 
-        # Statut
-        if score_vide > seuil_detection:
-            statut = "Employe Present"
-            color = (0, 255, 0)
+        # Gestion du délai d'absence
+        if not employe_present:
+            if absence_start_time is None:
+                absence_start_time = time.time()
+            elif time.time() - absence_start_time >= delai_absence:
+                if not poste_vide_confirme:
+                    poste_vide_confirme = True
+                    now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                    nom_fichier = f"{save_dir}/poste_vide_{now}.jpg"
+                    cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+                    print("Poste vide détecté depuis 10 secondes. Image sauvegardée.")
         else:
-            statut = "Attention: Poste Vide"
-            color = (0, 0, 255)
+            absence_start_time = None
+            poste_vide_confirme = False
 
-        # Affichage des cadres
+        # Affichage des cadres et texte
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 3)  # Cadre vert
-        cv2.rectangle(frame, (x + 50, y + 50), (x + w - 50, y + h - 50), (0, 0, 255), 2)  # Cadre rouge
-        cv2.putText(frame, statut, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+        statut = "Employe Present" if employe_present else "Absence en cours..."
+        cv2.putText(frame, statut, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0) if employe_present else (0, 255, 255), 2)
 
-        # Sauvegarde si nécessaire
-        if statut == "Attention: Poste Vide":
-            now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            nom_fichier = f"{save_dir}/poste_capture_{now}.jpg"
-            cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-
-        # Affichage
         cv2.imshow("Flux Camera Temps Reel", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):

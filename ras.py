@@ -4,30 +4,37 @@ import numpy as np
 import time
 import os
 
-save_dir = "./captures_poste_unique"
+save_dir = "./captures_postes"
 os.makedirs(save_dir, exist_ok=True)
 
 picam2 = Picamera2()
-
-# Configurer la caméra pour une résolution plus élevée si possible
 config = picam2.create_still_configuration(main={"size": (3280, 2464)})
 picam2.configure(config)
 
 picam2.start()
 time.sleep(2)
 
-# Définir la zone du poste (x, y, largeur, hauteur)
-poste_zone = (100, 100, 500, 800)  # à adapter selon ta caméra / poste
+frame_ref = picam2.capture_array()
+gray_ref = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
+
+zones_postes = [
+    (0, 0, 500, 800),
+    (500, 0, 500, 800),
+    (1000, 0, 500, 800),
+    (1500, 0, 500, 800),
+    (2000, 0, 500, 800),
+    (2500, 0, 500, 800),
+]
 
 compteur_images = 0
 nombre_verifications = 0
-MAX_VERIFICATIONS = 15
+MAX_VERIFICATIONS = 10
 
 def detect_bouton_rouge(roi_bgr):
     hsv = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
-    lower_red1 = np.array([0, 70, 50])
+    lower_red1 = np.array([0, 120, 70])
     upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([170, 70, 50])
+    lower_red2 = np.array([170, 120, 70])
     upper_red2 = np.array([180, 255, 255])
 
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
@@ -37,41 +44,53 @@ def detect_bouton_rouge(roi_bgr):
     kernel = np.ones((5, 5), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-    # Affichage pour debug
-    cv2.imshow("Masque rouge", mask)
-    cv2.waitKey(1)
-
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for c in contours:
-        if cv2.contourArea(c) > 100:  # seuil adapté pour bouton visible
+        if cv2.contourArea(c) > 500:
             return True
     return False
 
+while nombre_verifications < MAX_VERIFICATIONS:
+    frame = picam2.capture_array()
+    frame_with_rects = frame.copy()  # Copie pour ajouter les rectangles
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-try:
-    while nombre_verifications < MAX_VERIFICATIONS:
-        frame = picam2.capture_array()
+    diff = cv2.absdiff(gray_ref, gray)
+    _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+    thresh = cv2.GaussianBlur(thresh, (5, 5), 0)
 
-        x, y, w, h = poste_zone
+    poste_occupes = []
+
+    for i, (x, y, w, h) in enumerate(zones_postes):
+        zone_thresh = thresh[y:y + h, x:x + w]
         zone_bgr = frame[y:y + h, x:x + w]
+
+        contours, _ = cv2.findContours(zone_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        aire_totale = sum(cv2.contourArea(c) for c in contours)
+        seuil_occupation = 1000
 
         bouton_rouge = detect_bouton_rouge(zone_bgr)
 
-        if bouton_rouge:
-            print("Bouton rouge détecté.")
-            nom_fichier = f"{save_dir}/poste_capture_{compteur_images}.jpg"
-            cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-            compteur_images += 1
+        if aire_totale >= seuil_occupation or bouton_rouge:
+            print(f"Poste {i + 1} est occupé (par mouvement ou bouton rouge détecté).")
+            poste_occupes.append(i)
+            # Rectangle VERT si occupé ou bouton rouge
+            cv2.rectangle(frame_with_rects, (x, y), (x + w, y + h), (0, 255, 0), 5)
         else:
-            print("Bouton rouge non détecté.")
+            print(f"Poste {i + 1} est vide.")
+            # Rectangle ROUGE si vide
+            cv2.rectangle(frame_with_rects, (x, y), (x + w, y + h), (0, 0, 255), 2)
 
-        nombre_verifications += 1
-        time.sleep(1)
+    # Sauvegarde l'image avec les rectangles
+    if poste_occupes:
+        nom_fichier = f"{save_dir}/capture_{compteur_images}.jpg"
+        cv2.imwrite(nom_fichier, frame_with_rects, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+        print(f"Image sauvegardée : {nom_fichier}")
+        compteur_images += 1
 
-except KeyboardInterrupt:
-    print("Programme arrêté par l'utilisateur.")
+    nombre_verifications += 1
+    print(f"Vérification {nombre_verifications}/{MAX_VERIFICATIONS} terminée.\n")
+    time.sleep(1)
 
-finally:
-    picam2.stop()
-    cv2.destroyAllWindows()
-    print(f"Fin du programme après {nombre_verifications} vérifications.")
+picam2.stop()
+print("Fin du programme après 10 vérifications.")

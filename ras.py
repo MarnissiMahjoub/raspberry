@@ -5,108 +5,105 @@ import time
 import os
 from datetime import datetime
 
-# Dossier pour sauvegarder les captures
+# Dossier pour sauvegarder les captures et les références
 save_dir = "./captures_poste"
+ref_dir = "./references"
 os.makedirs(save_dir, exist_ok=True)
+os.makedirs(ref_dir, exist_ok=True)
+
+# Fichiers des références
+ref_vide_path = os.path.join(ref_dir, "reference_vide.jpg")
+ref_present_path = os.path.join(ref_dir, "reference_present.jpg")
+
+# Charger la référence vide
+if os.path.exists(ref_vide_path):
+    ref_vide = cv2.imread(ref_vide_path)
+    print("Référence vide chargée.")
+else:
+    ref_vide = None
+    print("Aucune référence vide trouvée. Appuyez sur 'v' pour capturer.")
+
+# Charger la référence employé présent
+if os.path.exists(ref_present_path):
+    ref_present = cv2.imread(ref_present_path)
+    print("Référence employé présent chargée.")
+else:
+    ref_present = None
+    print("Aucune référence employé présent trouvée. Appuyez sur 'p' pour capturer.")
+
+frame_size = (1280, 720)
 
 # Configurer la caméra
 picam2 = Picamera2()
-config = picam2.create_still_configuration(main={"size": (1280, 720)})
+config = picam2.create_still_configuration(main={"size": frame_size})
 picam2.configure(config)
 picam2.start()
-time.sleep(2)  # Laisser le temps à la caméra de se stabiliser
+time.sleep(2)  # Laisser la caméra se stabiliser
 
-# Définition d'une seule zone (à adapter selon ta caméra)
-x, y, w, h = 100, 100, 400, 300  # Zone du poste (cadre vert)
+# Zone du poste
+x, y, w, h = 100, 100, 400, 300  # Ajuste si besoin
 
-# Chargement des images de référence (poste vide et poste occupé)
-ref_empty_path = "poste_vide.jpg"
-ref_present_path = "poste_occupé.jpg"
+seuil_detection = 30
 
-# Fonction pour sauvegarder l’image de référence
-def save_reference_image(path, image):
-    cv2.imwrite(path, image, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-    print(f"Image de référence sauvegardée: {path}")
-
-print("Appuyez sur 'q' pour quitter, 'v' pour capturer poste vide, 'p' pour capturer poste occupé.")
+print("Appuyez sur 'q' pour quitter.")
+print("Appuyez sur 'v' pour enregistrer la référence vide.")
+print("Appuyez sur 'p' pour enregistrer la référence employé présent.")
 
 try:
     while True:
         frame = picam2.capture_array()
-        frame_blur = cv2.GaussianBlur(frame, (5,5), 0)
+        frame = cv2.resize(frame, frame_size)
 
-        # Zone du poste
-        zone = frame_blur[y:y+h, x:x+w]
-        gray_zone = cv2.cvtColor(zone, cv2.COLOR_BGR2GRAY)
-        _, mask_occup = cv2.threshold(gray_zone, 30, 255, cv2.THRESH_BINARY)
+        if ref_vide is not None:
+            # Comparer avec la référence vide
+            roi_frame = frame[y:y+h, x:x+w]
+            roi_ref_vide = ref_vide[y:y+h, x:x+w]
 
-        nb_pixels_total = mask_occup.size
-        nb_pixels_occupe = cv2.countNonZero(mask_occup)
-        ratio_occupe = nb_pixels_occupe / nb_pixels_total
-        seuil_presence = 0.05  # seuil pour présence
-
-        poste_ok = ratio_occupe > seuil_presence
-
-        # Détection contours dans la zone
-        contours, _ = cv2.findContours(mask_occup, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        employe_dehors = False
-
-        if contours:
-            c = max(contours, key=cv2.contourArea)
-            x_c, y_c, w_c, h_c = cv2.boundingRect(c)
-
-            # Dessiner le rectangle englobant de l’employé (zone détectée)
-            cv2.rectangle(zone, (x_c, y_c), (x_c + w_c, y_c + h_c), (255, 255, 0), 2)
-
-            # Vérifier si bounding box dépasse le cadre vert (zone poste)
-            if x_c < 0 or y_c < 0 or (x_c + w_c) > w or (y_c + h_c) > h:
-                employe_dehors = True
+            diff_vide = cv2.absdiff(cv2.cvtColor(roi_frame, cv2.COLOR_BGR2GRAY),
+                                    cv2.cvtColor(roi_ref_vide, cv2.COLOR_BGR2GRAY))
+            score_vide = np.mean(diff_vide)
+            employe_present = score_vide > seuil_detection
         else:
-            employe_dehors = True  # Pas de contour détecté, donc absent
+            employe_present = True  # Par défaut, si pas de référence vide
 
-        # Dessiner le cadre vert du poste sur l’image globale
+        # Affichage des cadres
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 3)
 
-        # Affichage du statut
-        if employe_dehors:
-            status_text = "Employe hors poste - Absent"
-            color = (0, 0, 255)  # rouge
-        elif poste_ok:
-            status_text = "Poste OK - Employe Present"
-            color = (0, 255, 0)  # vert
-        else:
-            status_text = "Poste Vide"
-            color = (0, 255, 255)  # jaune
+        # Texte d'état
+        statut = "Employe Present" if employe_present else "Absence"
+        cv2.putText(frame, statut, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                    (0, 255, 0) if employe_present else (0, 255, 255), 2)
 
-        cv2.putText(frame, status_text, (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
-        # Sauvegarde si poste vide ou absent (employé hors cadre)
-        if employe_dehors or not poste_ok:
+        # Sauvegarde si absence détectée
+        if not employe_present:
             now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            nom_fichier = f"{save_dir}/poste_capture_{now}.jpg"
+            nom_fichier = f"{save_dir}/poste_vide_{now}.jpg"
             cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            print("Poste vide detecte. Image sauvegardee.")
 
-        # Affichage flux temps réel
+        # Affichage du flux
         cv2.imshow("Flux Camera Temps Reel", frame)
 
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord('q'):
-            print("Arrêt demandé par l'utilisateur.")
+            print("Arret demande par l'utilisateur.")
             break
         elif key == ord('v'):
-            save_reference_image(ref_empty_path, frame[y:y+h, x:x+w])
+            ref_vide = frame.copy()
+            cv2.imwrite(ref_vide_path, ref_vide)
+            print("Nouvelle référence vide enregistrée.")
         elif key == ord('p'):
-            save_reference_image(ref_present_path, frame[y:y+h, x:x+w])
+            ref_present = frame.copy()
+            cv2.imwrite(ref_present_path, ref_present)
+            print("Nouvelle référence employé présent enregistrée.")
 
         time.sleep(0.05)
 
 except KeyboardInterrupt:
-    print("Arrêt forcé (CTRL+C) détecté.")
+    print("Arret force (CTRL+C) detecte.")
 
 finally:
     picam2.stop()
     cv2.destroyAllWindows()
-    print("Programme terminé proprement.")
+    print("Programme termine proprement.")

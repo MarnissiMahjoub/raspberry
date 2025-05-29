@@ -71,22 +71,24 @@ while nombre_verifications < MAX_VERIFICATIONS:
 
         bouton_rouge = detect_bouton_rouge(zone_bgr)
 
+        # Dessiner le grand cadre VERT (zone du poste)
+        cv2.rectangle(frame_with_rects, (x, y), (x + w, y + h), (0, 255, 0), 5)
+
+        # Dessiner le petit cadre ROUGE à l'intérieur (zone caméra)
+        pad = 50  # marge intérieure pour le cadre rouge (ajuste si besoin)
+        x_red, y_red = x + pad, y + pad
+        w_red, h_red = w - 2 * pad, h - 2 * pad
+        cv2.rectangle(frame_with_rects, (x_red, y_red), (x_red + w_red, y_red + h_red), (0, 0, 255), 3)
+
         if aire_totale >= seuil_occupation or bouton_rouge:
             print(f"Poste {i + 1} est occupé (par mouvement ou bouton rouge détecté).")
             poste_occupes.append(i)
-            # Rectangle VERT si occupé ou bouton rouge
-            cv2.rectangle(frame_with_rects, (x, y), (x + w, y + h), (0, 255, 0), 5)
-        else:
-            print(f"Poste {i + 1} est vide.")
-            # Rectangle ROUGE si vide
-            cv2.rectangle(frame_with_rects, (x, y), (x + w, y + h), (0, 0, 255), 2)
 
     # Sauvegarde l'image avec les rectangles
-    if poste_occupes:
-        nom_fichier = f"{save_dir}/capture_{compteur_images}.jpg"
-        cv2.imwrite(nom_fichier, frame_with_rects, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-        print(f"Image sauvegardée : {nom_fichier}")
-        compteur_images += 1
+    nom_fichier = f"{save_dir}/capture_{compteur_images}.jpg"
+    cv2.imwrite(nom_fichier, frame_with_rects, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+    print(f"Image sauvegardée : {nom_fichier}")
+    compteur_images += 1
 
     nombre_verifications += 1
     print(f"Vérification {nombre_verifications}/{MAX_VERIFICATIONS} terminée.\n")

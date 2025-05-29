@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import time
 import os
+from datetime import datetime
 
 save_dir = "./captures_postes"
 os.makedirs(save_dir, exist_ok=True)
@@ -17,13 +18,9 @@ time.sleep(2)
 frame_ref = picam2.capture_array()
 gray_ref = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
 
+# Un seul poste pour le test : (x, y, largeur, hauteur)
 zones_postes = [
-    (0, 0, 500, 800),
-    (500, 0, 500, 800),
-    (1000, 0, 500, 800),
-    (1500, 0, 500, 800),
-    (2000, 0, 500, 800),
-    (2500, 0, 500, 800),
+    (500, 500, 800, 800),  # Poste 1, adapte ces valeurs selon ta caméra et ton setup
 ]
 
 compteur_images = 0
@@ -52,14 +49,12 @@ def detect_bouton_rouge(roi_bgr):
 
 while nombre_verifications < MAX_VERIFICATIONS:
     frame = picam2.capture_array()
-    frame_with_rects = frame.copy()  # Copie pour ajouter les rectangles
+    frame_with_rects = frame.copy()
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     diff = cv2.absdiff(gray_ref, gray)
     _, thresh = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
     thresh = cv2.GaussianBlur(thresh, (5, 5), 0)
-
-    poste_occupes = []
 
     for i, (x, y, w, h) in enumerate(zones_postes):
         zone_thresh = thresh[y:y + h, x:x + w]
@@ -71,25 +66,28 @@ while nombre_verifications < MAX_VERIFICATIONS:
 
         bouton_rouge = detect_bouton_rouge(zone_bgr)
 
-        # Dessiner le grand cadre VERT (zone du poste)
+        # Dessiner le grand cadre vert
         cv2.rectangle(frame_with_rects, (x, y), (x + w, y + h), (0, 255, 0), 5)
 
-        # Dessiner le petit cadre ROUGE à l'intérieur (zone caméra)
-        pad = 50  # marge intérieure pour le cadre rouge (ajuste si besoin)
+        # Dessiner le petit cadre rouge à l'intérieur
+        pad = 50
         x_red, y_red = x + pad, y + pad
         w_red, h_red = w - 2 * pad, h - 2 * pad
         cv2.rectangle(frame_with_rects, (x_red, y_red), (x_red + w_red, y_red + h_red), (0, 0, 255), 3)
 
         if aire_totale >= seuil_occupation or bouton_rouge:
-            print(f"Poste {i + 1} est occupé (par mouvement ou bouton rouge détecté).")
-            poste_occupes.append(i)
+            print(f"Poste {i + 1} : Occupé ou bouton rouge détecté.")
+        else:
+            print(f"Poste {i + 1} : Vide.")
 
-    # Sauvegarde l'image avec les rectangles
-    nom_fichier = f"{save_dir}/capture_{compteur_images}.jpg"
+    # Ajout du timestamp dans le nom de l'image
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    nom_fichier = f"{save_dir}/capture_{compteur_images}_{timestamp}.jpg"
+
     cv2.imwrite(nom_fichier, frame_with_rects, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     print(f"Image sauvegardée : {nom_fichier}")
-    compteur_images += 1
 
+    compteur_images += 1
     nombre_verifications += 1
     print(f"Vérification {nombre_verifications}/{MAX_VERIFICATIONS} terminée.\n")
     time.sleep(1)

@@ -20,7 +20,7 @@ gray_ref = cv2.cvtColor(frame_ref, cv2.COLOR_BGR2GRAY)
 
 # Un seul poste pour le test : (x, y, largeur, hauteur)
 zones_postes = [
-    (500, 500, 800, 800),  # Poste 1, adapte ces valeurs selon ta caméra et ton setup
+    (500, 500, 800, 800),  # Poste 1 (ajuste ces valeurs selon ton setup)
 ]
 
 compteur_images = 0
@@ -66,10 +66,10 @@ while nombre_verifications < MAX_VERIFICATIONS:
 
         bouton_rouge = detect_bouton_rouge(zone_bgr)
 
-        # Dessiner le grand cadre vert
+        # Cadre vert : grand cadre = zone du poste
         cv2.rectangle(frame_with_rects, (x, y), (x + w, y + h), (0, 255, 0), 5)
 
-        # Dessiner le petit cadre rouge à l'intérieur
+        # Cadre rouge : zone du bouton (plus petit à l'intérieur)
         pad = 50
         x_red, y_red = x + pad, y + pad
         w_red, h_red = w - 2 * pad, h - 2 * pad
@@ -80,12 +80,18 @@ while nombre_verifications < MAX_VERIFICATIONS:
         else:
             print(f"Poste {i + 1} : Vide.")
 
-    # Ajout du timestamp dans le nom de l'image
+    # Sauvegarde avec timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     nom_fichier = f"{save_dir}/capture_{compteur_images}_{timestamp}.jpg"
-
     cv2.imwrite(nom_fichier, frame_with_rects, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     print(f"Image sauvegardée : {nom_fichier}")
+
+    # Affichage en temps réel
+    cv2.imshow("Poste - Vue en direct", frame_with_rects)
+
+    # Gestion de la fermeture (appuyer sur 'q' pour quitter à tout moment)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
     compteur_images += 1
     nombre_verifications += 1
@@ -93,4 +99,5 @@ while nombre_verifications < MAX_VERIFICATIONS:
     time.sleep(1)
 
 picam2.stop()
+cv2.destroyAllWindows()
 print("Fin du programme après 10 vérifications.")

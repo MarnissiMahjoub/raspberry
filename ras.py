@@ -9,7 +9,7 @@ save_dir = "./captures_postes"
 os.makedirs(save_dir, exist_ok=True)
 
 picam2 = Picamera2()
-config = picam2.create_still_configuration(main={"size": (3280, 2464)})
+config = picam2.create_still_configuration(main={"size": (1600, 700)})
 picam2.configure(config)
 
 picam2.start()

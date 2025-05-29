@@ -14,12 +14,25 @@ picam2.configure(config)
 picam2.start()
 time.sleep(2)  # Temps pour stabiliser
 
+# Définir le rectangle (cadre) du poste
+# Exemple : Poste 1 (x, y, w, h)
+zone_poste = (300, 200, 400, 300)  # À ajuster selon ton cadrage
+
 print("Appuyez sur 'v' pour capturer la reference VIDE")
 print("Appuyez sur 'o' pour capturer la reference OCCUPEE")
 print("Appuyez sur 'q' pour quitter")
 
 while True:
     frame = picam2.capture_array()
+
+    # Ajouter le cadre vert (poste)
+    x, y, w, h = zone_poste
+    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Vert = poste
+
+    # Ajouter un cadre rouge à l'intérieur (par exemple caméra, si tu veux)
+    padding = 20
+    cv2.rectangle(frame, (x + padding, y + padding), (x + w - padding, y + h - padding), (0, 0, 255), 2)  # Rouge = caméra
+
     cv2.imshow("Flux Camera", frame)
 
     key = cv2.waitKey(1) & 0xFF

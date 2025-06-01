@@ -1,102 +1,81 @@
 from picamera2 import Picamera2
 import cv2
+from ultralytics import YOLO
 import numpy as np
 import time
 import os
 from datetime import datetime
 
-# Dossier pour sauvegarder les captures et les références
+# Dossier pour sauvegarder les captures
 save_dir = "./captures_poste"
-ref_dir = "./references"
 os.makedirs(save_dir, exist_ok=True)
-os.makedirs(ref_dir, exist_ok=True)
 
-# Fichiers des références
-ref_vide_path = os.path.join(ref_dir, "reference_vide.jpg")
-ref_present_path = os.path.join(ref_dir, "reference_present.jpg")
-
-# Charger la référence vide
-if os.path.exists(ref_vide_path):
-    ref_vide = cv2.imread(ref_vide_path)
-    print("Référence vide chargée.")
-else:
-    ref_vide = None
-    print("Aucune référence vide trouvée. Appuyez sur 'v' pour capturer.")
-
-# Charger la référence employé présent
-if os.path.exists(ref_present_path):
-    ref_present = cv2.imread(ref_present_path)
-    print("Référence employé présent chargée.")
-else:
-    ref_present = None
-    print("Aucune référence employé présent trouvée. Appuyez sur 'p' pour capturer.")
-
+# Initialiser la caméra
 frame_size = (1280, 720)
-
-# Configurer la caméra
 picam2 = Picamera2()
 config = picam2.create_still_configuration(main={"size": frame_size})
 picam2.configure(config)
 picam2.start()
 time.sleep(2)  # Laisser la caméra se stabiliser
 
-# Zone du poste
-x, y, w, h = 100, 100, 400, 300  # Ajuste si besoin
+# Charger le modèle YOLOv8
+model = YOLO("yolov8n.pt")  # Remplace par yolov8s.pt ou autre selon le modèle choisi
 
-seuil_detection = 30
+# Définir les 6 zones (ajuste les coordonnées à ton espace)
+zones = [
+    (100, 100, 300, 400),
+    (320, 100, 520, 400),
+    (540, 100, 740, 400),
+    (760, 100, 960, 400),
+    (980, 100, 1180, 400),
+    (1200, 100, 1400, 400)
+]
 
 print("Appuyez sur 'q' pour quitter.")
-print("Appuyez sur 'v' pour enregistrer la référence vide.")
-print("Appuyez sur 'p' pour enregistrer la référence employé présent.")
 
 try:
     while True:
         frame = picam2.capture_array()
         frame = cv2.resize(frame, frame_size)
 
-        if ref_vide is not None:
-            # Comparer avec la référence vide
-            roi_frame = frame[y:y+h, x:x+w]
-            roi_ref_vide = ref_vide[y:y+h, x:x+w]
+        # Détection avec YOLO
+        results = model.predict(frame, imgsz=640, conf=0.5, verbose=False)
 
-            diff_vide = cv2.absdiff(cv2.cvtColor(roi_frame, cv2.COLOR_BGR2GRAY),
-                                    cv2.cvtColor(roi_ref_vide, cv2.COLOR_BGR2GRAY))
-            score_vide = np.mean(diff_vide)
-            employe_present = score_vide > seuil_detection
-        else:
-            employe_present = True  # Par défaut, si pas de référence vide
+        presence = [False] * len(zones)
 
-        # Affichage des cadres
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 3)
+        for result in results:
+            for box in result.boxes:
+                cls = int(box.cls[0])
+                if cls == 0:  # Classe 0 = personne
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    cx = (x1 + x2) // 2
+                    cy = (y1 + y2) // 2
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
 
-        # Texte d'état
-        statut = "Employe Present" if employe_present else "Absence"
-        cv2.putText(frame, statut, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                    (0, 255, 0) if employe_present else (0, 255, 255), 2)
+                    # Vérifier dans quelle zone se trouve le centre de la détection
+                    for i, (zx1, zy1, zx2, zy2) in enumerate(zones):
+                        if zx1 <= cx <= zx2 and zy1 <= cy <= zy2:
+                            presence[i] = True
 
-        # Sauvegarde si absence détectée
-        if not employe_present:
-            now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            nom_fichier = f"{save_dir}/poste_vide_{now}.jpg"
-            cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-            print("Poste vide detecte. Image sauvegardee.")
+        # Affichage des zones et du statut
+        for i, (zx1, zy1, zx2, zy2) in enumerate(zones):
+            color = (0, 255, 0) if presence[i] else (0, 0, 255)
+            label = f"Employe {i+1}: Present" if presence[i] else f"Employe {i+1}: Absent"
+            cv2.rectangle(frame, (zx1, zy1), (zx2, zy2), color, 2)
+            cv2.putText(frame, label, (zx1 + 5, zy1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-        # Affichage du flux
-        cv2.imshow("Flux Camera Temps Reel", frame)
+            # Sauvegarde si absence détectée
+            if not presence[i]:
+                now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                nom_fichier = f"{save_dir}/poste_{i+1}_vide_{now}.jpg"
+                cv2.imwrite(nom_fichier, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+
+        cv2.imshow("Detection Employes", frame)
 
         key = cv2.waitKey(1) & 0xFF
-
         if key == ord('q'):
             print("Arret demande par l'utilisateur.")
             break
-        elif key == ord('v'):
-            ref_vide = frame.copy()
-            cv2.imwrite(ref_vide_path, ref_vide)
-            print("Nouvelle référence vide enregistrée.")
-        elif key == ord('p'):
-            ref_present = frame.copy()
-            cv2.imwrite(ref_present_path, ref_present)
-            print("Nouvelle référence employé présent enregistrée.")
 
         time.sleep(0.05)
 
